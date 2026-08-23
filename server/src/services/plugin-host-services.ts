@@ -1178,6 +1178,9 @@ export function buildHostServices(
       async execute(params) {
         return pluginDb.execute(pluginId, params.sql, params.params);
       },
+      async transaction(params) {
+        return pluginDb.transaction(pluginId, params.statements);
+      },
     },
 
     entities: {

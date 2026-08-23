@@ -608,6 +608,22 @@ export interface PluginDatabaseClient {
 
   /** Run a restricted INSERT, UPDATE, or DELETE against the plugin namespace. */
   execute(sql: string, params?: unknown[]): Promise<{ rowCount: number }>;
+
+  /**
+   * Run several write statements inside one database transaction, so a
+   * multi-row invariant either lands completely or not at all.
+   *
+   * Each statement is subject to exactly the same restrictions as a single
+   * `execute()` call: one statement, namespace-scoped, INSERT/UPDATE/DELETE
+   * only, no DDL and no reference to `public`. The batch is validated in full
+   * before the transaction opens, and the whole batch travels in one host
+   * call - a transaction is never held open across a worker round trip.
+   *
+   * Resolves with one row count per statement, in the order supplied.
+   */
+  transaction(
+    statements: ReadonlyArray<{ sql: string; params?: unknown[] }>,
+  ): Promise<{ rowCounts: number[] }>;
 }
 
 /**

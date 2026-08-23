@@ -838,6 +838,15 @@ export function createTestHarness(options: TestHarnessOptions): TestHarness {
         dbExecutes.push({ sql, params });
         return { rowCount: 0 };
       },
+      async transaction(statements) {
+        requireCapability(manifest, capabilitySet, "database.namespace.write");
+        // Recorded in order alongside plain executes, so a test can assert the
+        // exact write sequence a handler produced.
+        for (const entry of statements) {
+          dbExecutes.push({ sql: entry.sql, params: entry.params });
+        }
+        return { rowCounts: statements.map(() => 0) };
+      },
     },
     http: {
       async fetch(url, init) {

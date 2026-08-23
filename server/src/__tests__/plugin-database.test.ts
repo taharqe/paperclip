@@ -24,6 +24,7 @@ import {
   validatePluginMigrationStatement,
   validatePluginRuntimeExecute,
   validatePluginRuntimeQuery,
+  MAX_PLUGIN_TRANSACTION_STATEMENTS,
 } from "../services/plugin-database.js";
 import { buildPluginWorkerEnv, pluginLoader } from "../services/plugin-loader.js";
 
@@ -139,6 +140,169 @@ describe("plugin database SQL validation", () => {
     expect(() =>
       validatePluginMigrationStatement("DO $$ BEGIN END $$;", "plugin_test")
     ).toThrow(/disallowed/i);
+  });
+
+  it("treats public.assets as a whitelisted read and foreign-key target", () => {
+    // Document-centric plugins keep their own metadata but must be able to point
+    // at the core blob record and join it for checksum/size/content-type.
+    expect(() =>
+      validatePluginMigrationStatement(
+        "CREATE TABLE plugin_test.docs (id uuid PRIMARY KEY, asset_id uuid REFERENCES public.assets(id))",
+        "plugin_test",
+        ["assets"],
+      )
+    ).not.toThrow();
+    expect(() =>
+      validatePluginRuntimeQuery(
+        "SELECT d.id, a.sha256 FROM plugin_test.docs d JOIN public.assets a ON a.id = d.asset_id",
+        "plugin_test",
+        ["assets"],
+      )
+    ).not.toThrow();
+    // Whitelisting is still opt-in per manifest: a plugin that does not declare
+    // `assets` in coreReadTables must not be able to read it.
+    expect(() =>
+      validatePluginRuntimeQuery(
+        "SELECT a.sha256 FROM public.assets a",
+        "plugin_test",
+        [],
+      )
+    ).toThrow(/not whitelisted/i);
+  });
+});
+
+describe("pluginDatabaseService.transaction", () => {
+  const NAMESPACE = "plugin_test_ns";
+
+  function createStubDb(options: { withTransaction?: boolean } = {}) {
+    const executed: string[] = [];
+    let transactionDepth = 0;
+    let maxTransactionDepth = 0;
+
+    const base = {
+      select: () => ({
+        from: () => ({
+          where: () => ({
+            limit: async () => [{ namespaceName: NAMESPACE, status: "active" }],
+          }),
+        }),
+      }),
+      execute: async (statement: unknown) => {
+        executed.push(String((statement as { queryChunks?: unknown })?.constructor?.name ?? "sql"));
+        return { count: 1 };
+      },
+    } as Record<string, unknown>;
+
+    if (options.withTransaction !== false) {
+      base.transaction = async (fn: (tx: unknown) => Promise<unknown>) => {
+        transactionDepth += 1;
+        maxTransactionDepth = Math.max(maxTransactionDepth, transactionDepth);
+        try {
+          return await fn(base);
+        } finally {
+          transactionDepth -= 1;
+        }
+      };
+    }
+
+    return {
+      db: base,
+      executed,
+      get maxTransactionDepth() {
+        return maxTransactionDepth;
+      },
+    };
+  }
+
+  function serviceFor(stub: ReturnType<typeof createStubDb>) {
+    return pluginDatabaseService(stub.db as never);
+  }
+
+  it("runs every statement inside a single transaction and returns row counts in order", async () => {
+    const stub = createStubDb();
+    const result = await serviceFor(stub).transaction("plugin-1", [
+      { sql: `INSERT INTO ${NAMESPACE}.rows (id) VALUES ($1)`, params: ["a"] },
+      { sql: `UPDATE ${NAMESPACE}.rows SET name = $1 WHERE id = $2`, params: ["x", "a"] },
+      { sql: `DELETE FROM ${NAMESPACE}.rows WHERE id = $1`, params: ["b"] },
+    ]);
+
+    expect(result.rowCounts).toEqual([1, 1, 1]);
+    expect(stub.executed).toHaveLength(3);
+    expect(stub.maxTransactionDepth).toBe(1);
+  });
+
+  it("applies the same restrictions as execute(), and rejects the batch before opening a transaction", async () => {
+    const cases: Array<{ sql: string; expected: RegExp }> = [
+      // Reads are not writes.
+      { sql: `SELECT * FROM ${NAMESPACE}.rows`, expected: /only allows INSERT, UPDATE, or DELETE/i },
+      // Cannot escape the namespace.
+      { sql: "INSERT INTO public.issues (id) VALUES ($1)", expected: /must be inside plugin namespace/i },
+      // No DDL.
+      { sql: `CREATE TABLE ${NAMESPACE}.x (id uuid)`, expected: /only allows INSERT, UPDATE, or DELETE/i },
+      // No multi-statement smuggling.
+      {
+        sql: `INSERT INTO ${NAMESPACE}.rows (id) VALUES ($1); DROP TABLE ${NAMESPACE}.rows`,
+        expected: /exactly one statement/i,
+      },
+    ];
+
+    for (const testCase of cases) {
+      const stub = createStubDb();
+      await expect(
+        serviceFor(stub).transaction("plugin-1", [
+          { sql: `INSERT INTO ${NAMESPACE}.rows (id) VALUES ($1)`, params: ["ok"] },
+          { sql: testCase.sql, params: ["x"] },
+        ]),
+      ).rejects.toThrow(testCase.expected);
+
+      // The valid first statement must not have run: validation happens up front,
+      // so an invalid batch never partially applies.
+      expect(stub.executed, testCase.sql).toHaveLength(0);
+      expect(stub.maxTransactionDepth, testCase.sql).toBe(0);
+    }
+  });
+
+  it("rejects an empty batch and one that exceeds the statement cap", async () => {
+    const stub = createStubDb();
+    await expect(serviceFor(stub).transaction("plugin-1", [])).rejects.toThrow(
+      /at least one statement/i,
+    );
+
+    const tooMany = Array.from({ length: MAX_PLUGIN_TRANSACTION_STATEMENTS + 1 }, () => ({
+      sql: `INSERT INTO ${NAMESPACE}.rows (id) VALUES ($1)`,
+      params: ["a"],
+    }));
+    await expect(serviceFor(stub).transaction("plugin-1", tooMany)).rejects.toThrow(
+      new RegExp(`at most ${MAX_PLUGIN_TRANSACTION_STATEMENTS} statements`, "i"),
+    );
+    expect(stub.executed).toHaveLength(0);
+  });
+
+  it("still applies the batch when the client exposes no transaction helper", async () => {
+    const stub = createStubDb({ withTransaction: false });
+    const result = await serviceFor(stub).transaction("plugin-1", [
+      { sql: `INSERT INTO ${NAMESPACE}.rows (id) VALUES ($1)`, params: ["a"] },
+    ]);
+    expect(result.rowCounts).toEqual([1]);
+    expect(stub.executed).toHaveLength(1);
+  });
+
+  it("refuses to run against a namespace that is not active", async () => {
+    const stub = createStubDb();
+    (stub.db as Record<string, unknown>).select = () => ({
+      from: () => ({
+        where: () => ({
+          limit: async () => [{ namespaceName: NAMESPACE, status: "migration_failed" }],
+        }),
+      }),
+    });
+
+    await expect(
+      serviceFor(stub).transaction("plugin-1", [
+        { sql: `INSERT INTO ${NAMESPACE}.rows (id) VALUES ($1)`, params: ["a"] },
+      ]),
+    ).rejects.toThrow(/namespace is not active/i);
+    expect(stub.executed).toHaveLength(0);
   });
 });
 

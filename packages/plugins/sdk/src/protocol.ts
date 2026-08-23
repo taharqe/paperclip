@@ -743,6 +743,10 @@ export interface WorkerToHostMethods {
     params: { sql: string; params?: unknown[] },
     result: { rowCount: number },
   ];
+  "db.transaction": [
+    params: { statements: Array<{ sql: string; params?: unknown[] }> },
+    result: { rowCounts: number[] },
+  ];
 
   // Entities
   "entities.upsert": [

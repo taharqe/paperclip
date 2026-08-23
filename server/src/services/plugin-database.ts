@@ -18,6 +18,19 @@ import type {
 const IDENTIFIER_RE = /^[A-Za-z_][A-Za-z0-9_]*$/;
 const MAX_POSTGRES_IDENTIFIER_LENGTH = 63;
 
+/**
+ * Upper bound on statements in a single `ctx.db.transaction` call. Keeps a
+ * plugin from holding a host transaction - and therefore a pooled connection
+ * and its row locks - open for an unbounded amount of work.
+ */
+export const MAX_PLUGIN_TRANSACTION_STATEMENTS = 50;
+
+/** One parameterized write statement in a `ctx.db.transaction` batch. */
+export interface PluginDatabaseStatement {
+  sql: string;
+  params?: unknown[];
+}
+
 type SqlRef = { schema: string; table: string; keyword: string };
 type QualifiedRefPattern =
   | { pattern: RegExp; groups: "keyword-schema-table" }
@@ -567,6 +580,54 @@ export function pluginDatabaseService(db: PluginDatabaseRootClient) {
       validatePluginRuntimeExecute(statement, namespace);
       const result = await db.execute(bindSql(statement, params));
       return { rowCount: Number((result as { count?: number | string }).count ?? 0) };
+    },
+
+    /**
+     * Run several namespace-scoped write statements inside one database
+     * transaction, so a plugin can keep a multi-row invariant consistent.
+     *
+     * Every statement goes through the same `validatePluginRuntimeExecute`
+     * checks as a single `execute()` call, so this widens atomicity only - it
+     * never widens what a plugin is allowed to touch. The whole batch arrives
+     * in a single host call, so no transaction is ever held open across a
+     * worker RPC round trip.
+     */
+    async transaction(
+      pluginId: string,
+      statements: readonly PluginDatabaseStatement[],
+    ): Promise<{ rowCounts: number[] }> {
+      if (!Array.isArray(statements) || statements.length === 0) {
+        throw new Error("ctx.db.transaction requires at least one statement");
+      }
+      if (statements.length > MAX_PLUGIN_TRANSACTION_STATEMENTS) {
+        throw new Error(
+          `ctx.db.transaction accepts at most ${MAX_PLUGIN_TRANSACTION_STATEMENTS} statements`,
+        );
+      }
+
+      const namespace = await getRuntimeNamespace(pluginId);
+      // Validate the whole batch before opening a transaction, so an invalid
+      // statement can never leave one open or partially applied.
+      for (const entry of statements) {
+        if (!entry || typeof entry.sql !== "string") {
+          throw new Error("ctx.db.transaction statements must each provide a sql string");
+        }
+        validatePluginRuntimeExecute(entry.sql, namespace);
+      }
+
+      const runAll = async (client: PluginDatabaseClient) => {
+        const rowCounts: number[] = [];
+        for (const entry of statements) {
+          const result = await client.execute(bindSql(entry.sql, entry.params));
+          rowCounts.push(Number((result as { count?: number | string }).count ?? 0));
+        }
+        return { rowCounts };
+      };
+
+      if (typeof db.transaction === "function") {
+        return db.transaction(async (tx) => runAll(tx as PluginDatabaseClient));
+      }
+      return runAll(db);
     },
   };
 }

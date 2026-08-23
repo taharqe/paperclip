@@ -80,7 +80,7 @@ Each is a **generic plugin-host improvement**, not ERP logic. See ADR-0002 for t
 | # | Change | Rationale |
 |---|---|---|
 | H1 | Add `assets` to `PLUGIN_DATABASE_CORE_READ_TABLES` | An ERP document row must be able to FK to `public.assets(id)` |
-| H2 | Generic `POST /api/companies/:companyId/assets` (multipart) | Today only image upload and issue-scoped attachments exist; plugin routes are JSON-only |
+| ~~H2~~ | ~~Generic company asset upload route~~ **NOT NEEDED** | `POST /api/companies/:companyId/assets/images` is misleadingly named: it is already a general company-scoped upload gated by the process content-type allowlist, which includes `application/pdf`. Verified by test (`server/src/__tests__/assets.test.ts`). The ERP reuses it with `namespace: "erp/documents"`. |
 | H3 | `ctx.db.transaction([...])` namespace-scoped transaction RPC | Multi-row ERP invariants cannot otherwise be atomic |
 | H4 | *(deferred)* Destructive plugin migrations behind manifest opt-in | See ADR-0003 |
 

@@ -195,6 +195,40 @@ describe("POST /api/companies/:companyId/assets/images", () => {
     expect(res.body.contentPath).toBe("/api/assets/asset-1/content");
     expect(res.body.contentType).toBe("text/plain");
   });
+
+  it("accepts PDF uploads under a caller-supplied namespace", async () => {
+    // Contract relied on by document-centric plugins: this route is a general
+    // company-scoped asset upload gated by the process content-type allowlist,
+    // not an image-only endpoint. Binary documents must round-trip unmodified.
+    const pdf = createStorageService("application/pdf");
+    const app = await createApp(pdf);
+
+    createAssetMock.mockResolvedValue({
+      ...createAsset(),
+      contentType: "application/pdf",
+      originalFilename: "spec.pdf",
+    });
+
+    const body = Buffer.from("%PDF-1.7\n1 0 obj\n<<>>\nendobj\n%%EOF");
+    const res = await requestApp(app, (baseUrl) =>
+      request(baseUrl)
+        .post("/api/companies/company-1/assets/images")
+        .field("namespace", "erp/documents")
+        .attach("file", body, { filename: "spec.pdf", contentType: "application/pdf" }),
+    );
+
+    expect([200, 201], JSON.stringify(res.body)).toContain(res.status);
+    expect(res.body.contentType).toBe("application/pdf");
+    expect(res.body.contentPath).toBe("/api/assets/asset-1/content");
+    expect(pdf.__calls.putFileInputs[0]).toMatchObject({
+      companyId: "company-1",
+      namespace: "assets/erp/documents",
+      originalFilename: "spec.pdf",
+      contentType: "application/pdf",
+    });
+    // The stored bytes must be the exact upload - no sanitisation on non-SVG.
+    expect(pdf.__calls.putFileInputs[0]!.body.equals(body)).toBe(true);
+  });
 });
 
 describe("POST /api/companies/:companyId/logo", () => {
