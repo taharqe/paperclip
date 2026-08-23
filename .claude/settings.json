@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "permissions": {
+    "allow": [
+      "Bash(pnpm exec vitest run:*)",
+      "Bash(pnpm --filter :*)",
+      "Bash(pnpm -r typecheck)",
+      "Bash(pnpm typecheck)",
+      "Bash(pnpm test:run)",
+      "Bash(pnpm build)",
+      "Bash(pnpm install)",
+      "Bash(pnpm db:generate)",
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "Bash(git show:*)",
+      "Bash(git branch:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(ls:*)",
+      "Bash(cat:*)",
+      "Bash(head:*)",
+      "Bash(tail:*)",
+      "Bash(wc:*)",
+      "Bash(find:*)",
+      "Bash(grep:*)",
+      "Bash(rg:*)",
+      "Bash(node -e:*)",
+      "Bash(mkdir:*)"
+    ]
+  }
+}
