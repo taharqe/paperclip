@@ -67,7 +67,15 @@ function quoteIdentifier(value: string): string {
   return `"${assertIdentifier(value).replaceAll("\"", "\"\"")}"`;
 }
 
-function splitSqlStatements(input: string): string[] {
+/**
+ * Split a SQL script on statement boundaries, ignoring semicolons inside quoted
+ * literals and comments.
+ *
+ * Exported so plugin packages can pre-flight their committed migrations through
+ * the same splitter the host uses at install time - a test that split
+ * differently could pass while the real install fails.
+ */
+export function splitSqlStatements(input: string): string[] {
   const statements: string[] = [];
   let start = 0;
   let quote: "'" | "\"" | null = null;
