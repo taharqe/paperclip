@@ -5,13 +5,15 @@ P2 = high-value functionality, P3 = tests/docs/refactor.
 
 | # | P | Action |
 |---|---|---|
-| 1 | P1 | ~~Record baseline~~ ✅ typecheck passes; test suite recorded `pnpm -r typecheck` and `pnpm test:run` results |
-| 2 | P1 | ~~Remove the stale~~ ✅ done — stale `./packages/adapters/droid-local` reference from root `tsconfig.json` |
-| 3 | P1 | ~~Write root `CLAUDE.md`~~ ✅ done |
-| 4 | P1 | ~~H1~~ ✅ done — `assets` added to `PLUGIN_DATABASE_CORE_READ_TABLES` |
-| 5 | P1 | H3 — `ctx.db.transaction([...])` namespace-scoped transaction RPC |
-| 6 | P2 | Scaffold `packages/plugins/plugin-erp-core`, compute the DB namespace |
-| 7 | P2 | ERP migrations, deterministic diff, lifecycle state machine |
-| 8 | P2 | ERP agent tools + three managed agents |
-| 9 | P2 | ERP UI shell |
-| 10 | P3 | Register plugin packages in `vitest.config.ts` + `run-vitest-stable.mjs` so plugin tests run in CI |
+| 1 | P1 | Implement `src/erp/sql.ts` — every statement as a named const, pre-flighted through the real validators |
+| 2 | P1 | Implement `src/erp/operations.ts` + `src/worker.ts` — read routes first, then writes |
+| 3 | P1 | Release gate (`prepare`/`link`), `approval.decided` subscription, reconcile jobs |
+| 4 | P2 | ERP UI shell: register, document detail with provenance, diff view, review queue |
+| 5 | P2 | Real-Postgres test applying the migration and exercising the atomic write (CI only — embedded Postgres does not start in this sandbox) |
+| 6 | P3 | Backfill `plugin-llm-wiki` / `plugin-workspace-diff` into the CI vitest lists so their tests run too |
+| 7 | P3 | Host fix for K10: strip comments before quoted literals in `stripSqlForKeywordScan` |
+
+## Done
+
+Phases 0, A and B; ERP scaffold, schema, pure cores and manifest (commits `619ba36`,
+`c72dfd2`, `1d6e8a8`, `e0d2bae`, `dea7930`).

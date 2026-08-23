@@ -23,10 +23,20 @@ No ERP product code has been written yet.
 - ✅ Repository reverse-engineered — see `doc/architecture/paperclip-analysis.md`
 - ✅ ERP boundary decided — the ERP is a bundled first-party Paperclip **plugin**
   (see `doc/decisions/ADR-0001-erp-extension-boundary.md`)
-- ✅ `pnpm install` completed
-- 🔄 Baseline `pnpm -r typecheck` / `pnpm test:run` being recorded
-- ⬜ Phase B — core plugin-host fixes H1–H3
-- ⬜ Phase C — ERP slice 1
+- ✅ `pnpm install`; baseline recorded (typecheck clean; 903 tests pass, 3 pre-existing
+  environmental failures — see `known-issues.md`)
+- ✅ Phase B — core plugin-host fixes: `ctx.db.transaction([...])` and `assets` whitelisted.
+  H2 turned out to be unnecessary; the existing upload route is already general.
+- 🔄 Phase C — ERP slice 1 in progress:
+  - ✅ `packages/plugins/plugin-erp-core` scaffolded and registered (Dockerfile, vitest
+    projects, run-vitest-stable, bundled-plugin badge)
+  - ✅ Schema: 11 tables, validated statement-by-statement against the production
+    migration validator
+  - ✅ Pure cores: deterministic diff, lifecycle state machine, ERP permission layer
+  - ✅ Manifest validated against the host schema; three managed agents with instructions
+  - ⬜ Worker + operations (`src/erp/operations.ts`, `src/worker.ts`)
+  - ⬜ Release gate + reconcile jobs
+  - ⬜ UI shell
 
 ## Key architectural facts to re-read after any context loss
 
