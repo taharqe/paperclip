@@ -100,6 +100,24 @@ discriminated by `payload`, records the human decision.
 | **6. Advanced AI** | Multi-agent workflows, enterprise search, agent memory, AI command centre | Compound autonomy |
 | **7. Enterprise platform** | Multi-tenancy hardening, integrations, analytics, plugin marketplace | Productisation |
 
+## 6a. How agents reach ERP operations
+
+**Verified constraint:** core cannot dispatch plugin tools to agents. Both `/api/plugins/tools` and
+`/api/plugins/tools/execute` require board access (`assertBoardOrgAccess`), and there is no MCP tool
+for plugin tools. `manifest.tools[]` is therefore a board/registry surface, not an agent surface.
+
+Every ERP operation is implemented **once** and exposed through two front doors:
+
+- **`manifest.apiRoutes`** with `auth: "agent"` or `"board-or-agent"` — the working agent path.
+  `assertScopedApiAuth` explicitly admits agent actors, then `assertCompanyAccess` and the declared
+  `checkoutPolicy` still apply. Agents call these with `paperclipApiRequest` or plain HTTP using
+  their run JWT / API key.
+- **`manifest.tools`** with the same names and schemas — for the board UI and tool registry, and
+  ready for the day agent tool dispatch is opened up.
+
+Opening the tool routes to agents would be a change to an auth boundary and belongs in its own
+change with its own authz tests. It is **not** part of slice 1.
+
 ## 7. Non-negotiable invariants
 
 1. **Provenance.** Every engineering value records its source document, page/locator, revision,

@@ -67,6 +67,9 @@ Verified in `server/src/services/plugin-database.ts`:
   **cannot reference `public` at all**. Denormalise `company_id` into ERP tables.
 - Plugin API routes are **JSON-only** and mount at `/api/plugins/:pluginId/api/*`. File upload must
   go through a core route.
+- **Agents cannot call plugin tools.** `/api/plugins/tools` and `/plugins/tools/execute` are
+  board-only. Agent-facing operations must be `manifest.apiRoutes` with `auth: "agent"` or
+  `"board-or-agent"`. Declare `manifest.tools[]` too, but never depend on it for agent access.
 - `ctx.assets` does not exist — a worker cannot read file bytes. Agents fetch them over HTTP with
   their own credentials.
 
