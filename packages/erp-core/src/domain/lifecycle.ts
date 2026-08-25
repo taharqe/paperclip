@@ -1,4 +1,4 @@
-import { ERP_REVIEW_STATES, type ErpReviewState } from "../constants.js";
+import { ERP_REVIEW_STATES, type ErpReviewState } from "./constants.js";
 
 /**
  * The document revision state machine.

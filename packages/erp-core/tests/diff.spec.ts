@@ -3,8 +3,8 @@ import {
   diffRevisionValues,
   DuplicateDiffKeyError,
   type DiffInputValue,
-} from "../src/erp/diff.js";
-import { DIFF_ALGORITHM_VERSION } from "../src/constants.js";
+} from "../src/domain/diff.js";
+import { DIFF_ALGORITHM_VERSION } from "../src/domain/constants.js";
 
 function value(
   valueId: string,

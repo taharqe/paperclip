@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { ERP_REVIEW_STATES, type ErpReviewState } from "../src/constants.js";
+import { ERP_REVIEW_STATES, type ErpReviewState } from "../src/domain/constants.js";
 import {
   agentReachableStates,
   evaluateTransition,
   isProvisionalState,
   type ErpActorKind,
   type TransitionContext,
-} from "../src/erp/lifecycle.js";
+} from "../src/domain/lifecycle.js";
 
 const ACTOR_KINDS: ErpActorKind[] = ["user", "agent", "plugin"];
 

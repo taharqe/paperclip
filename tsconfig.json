@@ -6,6 +6,7 @@
     { "path": "./packages/mcp-server" },
     { "path": "./packages/shared" },
     { "path": "./packages/db" },
+    { "path": "./packages/erp-core" },
     { "path": "./packages/adapters/claude-local" },
     { "path": "./packages/adapters/codex-local" },
     { "path": "./packages/adapters/cursor-local" },

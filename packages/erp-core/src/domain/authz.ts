@@ -1,4 +1,4 @@
-import { ERP_ROLES, type ErpRole } from "../constants.js";
+import { ERP_ROLES, type ErpRole } from "./constants.js";
 
 /**
  * The ERP permission layer.

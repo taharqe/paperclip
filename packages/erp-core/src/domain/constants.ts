@@ -1,18 +1,10 @@
 /**
- * Stable identifiers for the Industrial ERP core plugin.
+ * Shared ERP vocabulary.
  *
- * `ERP_NAMESPACE` is the Postgres schema the host allocates to this plugin. The
- * host derives it from `PLUGIN_ID` + `NAMESPACE_SLUG` and does **not** substitute
- * it into migration SQL, so every migration file hardcodes the literal below.
- * `tests/namespace.spec.ts` re-derives it and fails if the two ever drift.
- *
- * Regenerate with: pnpm --filter @paperclipai/plugin-erp-core namespace
+ * These are the closed sets the whole ERP agrees on. They live in the domain
+ * layer because both the persistence layer and the HTTP layer must not disagree
+ * about them.
  */
-export const PLUGIN_ID = "paperclipai.plugin-erp-core";
-export const PLUGIN_VERSION = "0.1.0";
-export const NAMESPACE_SLUG = "erp_core";
-export const ERP_NAMESPACE = "plugin_erp_core_b9375856a1";
-
 /**
  * Lifecycle states shared by document revisions and extracted values.
  *

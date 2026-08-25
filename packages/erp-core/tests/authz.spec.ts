@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ERP_ROLES, type ErpRole } from "../src/constants.js";
+import { ERP_ROLES, type ErpRole } from "../src/domain/constants.js";
 import {
   actionsForRole,
   ERP_ACTIONS,
@@ -7,7 +7,7 @@ import {
   hasReleaseGrant,
   type ErpAction,
   type ErpGrant,
-} from "../src/erp/authz.js";
+} from "../src/domain/authz.js";
 
 function grants(...roles: ErpRole[]): ErpGrant[] {
   return roles.map((role) => ({ role }));
