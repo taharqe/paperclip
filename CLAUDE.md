@@ -18,7 +18,7 @@ Paperclip conventions; this file wins on ERP boundaries.
 | Layer | Role | Lives in |
 |---|---|---|
 | **Paperclip core** | Control plane — agents, tasks, execution, budgets, governance | `server/`, `packages/db`, `packages/shared`, `ui/` |
-| **Industrial ERP** | System of record — documents, engineering data, equipment | `packages/plugins/plugin-erp-*` |
+| **Industrial ERP** | System of record — documents, engineering data, equipment | `packages/erp-*`, schema in `packages/db/src/schema/erp/` |
 | **AI agents** | System of action — extraction, analysis, coordination | Paperclip agents driving ERP tools |
 
 Paperclip stays the control plane. The ERP is the system of record. Humans remain responsible for
@@ -32,8 +32,8 @@ Ask in order; **first match wins**:
    `activity_log`, `agents`, `projects`, `goals`, heartbeats, budgets)
 2. Is it a generic gap in the *plugin system*? → smallest possible core fix, with tests, carrying
    **no ERP vocabulary**.
-3. Is it ERP business logic? → `plugin-erp-core`.
-4. Is it industrial-domain logic? → `plugin-erp-industrial`.
+3. Is it ERP business logic? → `packages/erp-core`.
+4. Is it industrial-domain logic? → `packages/erp-industrial`.
 5. Is it an external system? → an integration module behind an interface.
 
 Before creating an abstraction, check whether one exists. Before adding a dependency, check whether
@@ -55,33 +55,39 @@ Do not modify these for ERP work. They are the highest-blast-radius files in the
 Also never: add ERP values to closed core enums (`APPROVAL_TYPES`, `PERMISSION_KEYS`,
 `ISSUE_STATUSES`); commit `pnpm-lock.yaml`; or write ERP domain logic into `packages/shared`.
 
-## 4. Plugin constraints you must design around
+## 4. ERP structure and the one seam
 
-Verified in `server/src/services/plugin-database.ts`:
+The ERP is **first-party code, not a plugin** (see `doc/decisions/ADR-0004`). Layering:
 
-- Migrations are **additive-only** — `DROP`/`TRUNCATE` rejected. No extensions, triggers, functions.
-- The DB namespace is hash-derived (`plugin_<slug>_<hash>`) and **is not substituted** — migration
-  SQL hardcodes the literal schema name.
-- `ctx.db.query()` — one statement, must start `select `/`with `, no mutation or DDL keywords.
-- `ctx.db.execute()` — one statement, must start `insert into`/`update`/`delete from`, and
-  **cannot reference `public` at all**. Denormalise `company_id` into ERP tables.
-- Plugin API routes are **JSON-only** and mount at `/api/plugins/:pluginId/api/*`. File upload must
-  go through a core route.
-- **Agents cannot call plugin tools.** `/api/plugins/tools` and `/plugins/tools/execute` are
-  board-only. Agent-facing operations must be `manifest.apiRoutes` with `auth: "agent"` or
-  `"board-or-agent"`. Declare `manifest.tools[]` too, but never depend on it for agent access.
-- `ctx.assets` does not exist — a worker cannot read file bytes. Agents fetch them over HTTP with
-  their own credentials.
+| Layer | Lives in | Rule |
+|---|---|---|
+| Pure domain logic | `packages/erp-core/src/domain/` | No I/O, no `ctx`, no LLM. Exhaustively unit-tested. |
+| Persistence + business ops | `packages/erp-core/src/services/` | Drizzle over the ERP schema |
+| HTTP surface | `packages/erp-core/src/routes/` | Mounted via the module registry, not wired ad hoc into `app.ts` |
+| Tables | `packages/db/src/schema/erp/` | One re-export line in `schema/index.ts` is the whole seam |
 
-Full detail: `doc/architecture/paperclip-analysis.md` §9.
+Why the schema sits in `packages/db`: putting it in `erp-core` would make `db` depend on
+`erp-core` for drizzle-kit while `erp-core` depends on `db` for company foreign keys. One
+migration timeline, one drizzle config, no cycle.
+
+**Non-negotiable schema invariants** (enforced by `packages/erp-core/tests/schema.spec.ts`):
+
+- Every ERP table carries `company_id NOT NULL` with `ON DELETE CASCADE`.
+- Every index leads with `company_id`. Core has no RLS — tenancy is your discipline.
+- **Never foreign-key `assets`.** Core deletes asset rows when replacing a logo or attachment
+  and when deleting a company; a cascade would destroy a document-control record and a
+  restrict would break company deletion. Denormalise the checksum instead — an audit record
+  must outlive its blob.
+- **Never name an approval-payload field** `*token*`/`*secret*`/`*key*`/`*auth*`. Core redacts
+  those on every approvals response, so you would read back `[REDACTED]`. Use `gateRef`.
 
 ## 5. Security and permissions
 
 - **Company-scope everything.** Every ERP table carries `company_id`; every query filters on it,
   including single-row reads. Core has no RLS — isolation is entirely your responsibility.
-- **Enforce permissions server-side against `actor`**, in `onApiRequest`. Never rely on which tools
-  an agent was given: the `paperclipApiRequest` MCP tool lets any agent call any REST path, so tool
-  curation is **not** a security boundary.
+- **Enforce permissions server-side against `req.actor`**, in the route handler. Never rely on
+  which tools an agent was given: the `paperclipApiRequest` MCP tool lets any agent call any REST
+  path, so tool curation is **not** a security boundary.
 - **Least privilege.** An agent gets the minimum ERP grants for its role. No agent may approve or
   release.
 - Never hard-code credentials. Never expose keys in frontend code.
@@ -124,8 +130,9 @@ checks on every edit.
   invent one.
 - Tests needing a real database **must** use `server/src/__tests__/helpers/embedded-postgres.ts`.
 - UI DOM tests need `// @vitest-environment jsdom` on line 1.
-- A new plugin package must be registered in root `vitest.config.ts` `projects` **and**
+- A new package must be registered in root `vitest.config.ts` `projects` **and**
   `scripts/run-vitest-stable.mjs` `nonServerProjects`, or its tests never run in CI.
+- After an ERP schema change: `pnpm db:generate && pnpm -r typecheck`.
 - A new workspace package must be added to the `Dockerfile` deps stage
   (`scripts/check-docker-deps-stage.mjs` fails CI otherwise).
 

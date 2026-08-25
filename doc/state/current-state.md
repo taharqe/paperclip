@@ -17,34 +17,33 @@ Three layers, deliberately separated:
 
 ## Where we are
 
-Phase 0 (working environment) and Phase A (project operating system) are underway.
-No ERP product code has been written yet.
+The ERP is **first-party code, not a plugin** — reversed after measuring the plugin boundary's
+real cost. See `doc/decisions/ADR-0004-erp-as-first-party-packages.md`.
 
-- ✅ Repository reverse-engineered — see `doc/architecture/paperclip-analysis.md`
-- ✅ ERP boundary decided — the ERP is a bundled first-party Paperclip **plugin**
-  (see `doc/decisions/ADR-0001-erp-extension-boundary.md`)
-- ✅ `pnpm install`; baseline recorded (typecheck clean; 903 tests pass, 3 pre-existing
-  environmental failures — see `known-issues.md`)
-- ✅ Phase B — core plugin-host fixes: `ctx.db.transaction([...])` and `assets` whitelisted.
-  H2 turned out to be unnecessary; the existing upload route is already general.
-- 🔄 Phase C — ERP slice 1 in progress:
-  - ✅ `packages/plugins/plugin-erp-core` scaffolded and registered (Dockerfile, vitest
-    projects, run-vitest-stable, bundled-plugin badge)
-  - ✅ Schema: 11 tables, validated statement-by-statement against the production
-    migration validator
-  - ✅ Pure cores: deterministic diff, lifecycle state machine, ERP permission layer
-  - ✅ Manifest validated against the host schema; three managed agents with instructions
-  - ⬜ Worker + operations (`src/erp/operations.ts`, `src/worker.ts`)
-  - ⬜ Release gate + reconcile jobs
-  - ⬜ UI shell
+- ✅ Repository reverse-engineered — `doc/architecture/paperclip-analysis.md`
+- ✅ Baseline recorded (typecheck clean; 903 tests pass, 3 pre-existing environmental failures)
+- ✅ Phase B host improvements kept in core: `ctx.db.transaction([...])`, `assets` read whitelist.
+  Generic and tested; the ERP no longer needs them but any plugin can use them.
+- ✅ ERP migrated to `packages/erp-core` + `packages/db/src/schema/erp/`
+  - Domain layer (deterministic diff, review-state machine, permission model) — 34 tests, moved
+    untouched
+  - 10 tables as typed Drizzle schema; migration `0094` (73 statements, ERP-only, no drops)
+  - Schema invariants enforced by test — 5 tests
+- ⬜ `packages/erp-core/src/services/` — persistence and business operations
+- ⬜ `packages/erp-core/src/routes/` + the module registry seam in `server/src/app.ts`
+- ⬜ ERP UI pages + nav
+- ⬜ Native MCP agent tools
 
 ## Key architectural facts to re-read after any context loss
 
-1. **The ERP is a plugin, not core.** `packages/plugins/plugin-llm-wiki` is the working template.
-2. **Reuse core primitives**: blob storage (`server/src/storage/` + `assets`), `issues`,
-   `approvals`, `activity_log`, `agents`, `projects`. Do not rebuild any of them.
-3. **Plugin SQL is heavily constrained** — additive-only migrations, single-statement runtime SQL,
-   no transactions, `execute` cannot touch `public`. See `paperclip-analysis.md` §9.
-4. **Enforce ERP permissions server-side on `actor`**, never by curating an agent's tool list —
-   the `paperclipApiRequest` MCP tool bypasses tool curation entirely.
-5. **Never commit `pnpm-lock.yaml`** — CI blocks it; `refresh-lockfile.yml` owns it.
+1. **The ERP is first-party.** `packages/erp-core` for logic, `packages/db/src/schema/erp/` for
+   tables. Core gets ONE module-registry seam, not scattered wiring.
+2. **Reuse core primitives**: blob storage and `assets`, `issues`, `approvals`, `activity_log`,
+   `agents`, `projects`. Do not rebuild any of them.
+3. **Four schema invariants are non-negotiable** and test-enforced: company-scoped and cascading,
+   every index leads with `company_id`, no foreign key to `assets`, no approval-payload field
+   matching the redaction pattern. See `CLAUDE.md` §4.
+4. **Enforce ERP permissions server-side on `req.actor`**, never by curating an agent's tools —
+   `paperclipApiRequest` bypasses tool curation entirely.
+5. **Never commit `pnpm-lock.yaml`** in a PR — CI blocks it; `refresh-lockfile.yml` owns it. (This
+   branch commits it out of necessity for new workspace packages.)

@@ -1,7 +1,11 @@
 # ADR-0001 — The Industrial ERP is a Paperclip plugin, not core
 
-Status: Accepted
+Status: **Superseded by ADR-0004** (2026-08-23)
 Date: 2026-08-23
+
+> Superseded after building on it. The boundary held its promise - zero ERP vocabulary reached
+> core - but charged for that isolation through untyped SQL, additive-only migrations, and
+> board-only agent tool dispatch. See `ADR-0004-erp-as-first-party-packages.md`.
 
 ## Context
 
