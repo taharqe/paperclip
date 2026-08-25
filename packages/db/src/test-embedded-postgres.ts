@@ -112,7 +112,25 @@ function formatEmbeddedPostgresError(error: unknown): string {
   return "embedded Postgres startup failed";
 }
 
+/**
+ * An externally provisioned test database, used instead of spawning one.
+ *
+ * `embedded-postgres` bundles its own `initdb`, which refuses to run as root -
+ * so it cannot start in a root container even when a perfectly good PostgreSQL
+ * is installed. Without an escape hatch every database-backed test silently
+ * skips there, which reads as coverage but is not. Point this at a scratch
+ * database and the same tests run for real.
+ *
+ * The database is migrated but never dropped: it is the caller's, not ours.
+ */
+export function externalTestDatabaseUrl(): string | null {
+  const url = process.env.PAPERCLIP_TEST_DATABASE_URL?.trim();
+  return url && url.length > 0 ? url : null;
+}
+
 async function probeEmbeddedPostgresSupport(): Promise<EmbeddedPostgresTestSupport> {
+  if (externalTestDatabaseUrl()) return { supported: true };
+
   let dataDir: string | null = null;
   let instance: EmbeddedPostgresInstance | null = null;
 
@@ -146,6 +164,13 @@ export async function getEmbeddedPostgresTestSupport(): Promise<EmbeddedPostgres
 export async function startEmbeddedPostgresTestDatabase(
   tempDirPrefix: string,
 ): Promise<EmbeddedPostgresTestDatabase> {
+  const external = externalTestDatabaseUrl();
+  if (external) {
+    await applyPendingMigrations(external);
+    // Nothing to tear down - we did not create this server.
+    return { connectionString: external, cleanup: async () => {} };
+  }
+
   let dataDir: string | null = null;
   let instance: EmbeddedPostgresInstance | null = null;
 

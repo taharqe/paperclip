@@ -1,4 +1,6 @@
+import { sql } from "drizzle-orm";
 import {
+  check,
   pgTable,
   uuid,
   text,
@@ -68,6 +70,14 @@ export const erpDocuments = pgTable(
       table.projectId,
     ),
     companyTypeIdx: index("erp_documents_company_type_idx").on(table.companyId, table.docType),
+    lifecycleCk: check(
+      "erp_documents_lifecycle_ck",
+      sql`${table.lifecycleStatus} in ('active', 'superseded', 'withdrawn')`,
+    ),
+    createdByKindCk: check(
+      "erp_documents_created_by_kind_ck",
+      sql`${table.createdByKind} in ('user', 'agent', 'plugin')`,
+    ),
   }),
 );
 
@@ -127,6 +137,11 @@ export const erpDocumentRevisions = pgTable(
       table.reviewState,
     ),
     companyAssetIdx: index("erp_revisions_company_asset_idx").on(table.companyId, table.assetId),
+    stateCk: check(
+      "erp_revisions_state_ck",
+      sql`${table.reviewState} in ('DRAFT', 'AI_GENERATED', 'REQUIRES_REVIEW', 'APPROVED', 'RELEASED', 'REJECTED')`,
+    ),
+    byteSizeCk: check("erp_revisions_byte_size_ck", sql`${table.assetByteSize} >= 0`),
   }),
 );
 
@@ -176,6 +191,14 @@ export const erpExtractionRuns = pgTable(
       table.companyId,
       table.status,
       table.startedAt,
+    ),
+    methodCk: check(
+      "erp_extraction_runs_method_ck",
+      sql`${table.extractionMethod} in ('llm_vision', 'llm_text', 'ocr', 'parser', 'manual')`,
+    ),
+    statusCk: check(
+      "erp_extraction_runs_status_ck",
+      sql`${table.status} in ('started', 'committed', 'failed', 'abandoned')`,
     ),
   }),
 );
@@ -242,6 +265,15 @@ export const erpExtractedValues = pgTable(
     companyReviewIdx: index("erp_values_company_review_idx").on(
       table.companyId,
       table.reviewState,
+    ),
+    originCk: check("erp_values_origin_ck", sql`${table.origin} in ('ai', 'human', 'parser')`),
+    reviewCk: check(
+      "erp_values_review_ck",
+      sql`${table.reviewState} in ('unreviewed', 'accepted', 'corrected', 'rejected')`,
+    ),
+    confidenceCk: check(
+      "erp_values_confidence_ck",
+      sql`${table.confidence} is null or (${table.confidence} >= 0 and ${table.confidence} <= 1)`,
     ),
   }),
 );
@@ -323,6 +355,10 @@ export const erpRevisionDiffEntries = pgTable(
       table.diffId,
       table.changeKind,
     ),
+    kindCk: check(
+      "erp_diff_entries_kind_ck",
+      sql`${table.changeKind} in ('added', 'removed', 'changed')`,
+    ),
   }),
 );
 
@@ -360,6 +396,10 @@ export const erpStateTransitions = pgTable(
       table.companyId,
       table.revisionId,
       table.occurredAt,
+    ),
+    actorKindCk: check(
+      "erp_transitions_actor_kind_ck",
+      sql`${table.actorKind} in ('user', 'agent', 'plugin')`,
     ),
   }),
 );
@@ -402,6 +442,10 @@ export const erpReleaseGates = pgTable(
       table.gateStatus,
       table.updatedAt,
     ),
+    statusCk: check(
+      "erp_gates_status_ck",
+      sql`${table.gateStatus} in ('awaiting_link', 'pending', 'approved', 'rejected', 'cancelled')`,
+    ),
   }),
 );
 
@@ -433,6 +477,14 @@ export const erpRoleGrants = pgTable(
       table.principalId,
     ),
     companyRoleIdx: index("erp_role_grants_company_role_idx").on(table.companyId, table.erpRole),
+    principalKindCk: check(
+      "erp_role_grants_principal_kind_ck",
+      sql`${table.principalKind} in ('user', 'agent')`,
+    ),
+    roleCk: check(
+      "erp_role_grants_role_ck",
+      sql`${table.erpRole} in ('erp_viewer', 'erp_engineer', 'erp_doc_controller', 'erp_approver', 'erp_admin')`,
+    ),
   }),
 );
 
@@ -465,6 +517,10 @@ export const erpOperations = pgTable(
       table.companyId,
       table.status,
       table.startedAt,
+    ),
+    statusCk: check(
+      "erp_operations_status_ck",
+      sql`${table.status} in ('started', 'committed', 'failed', 'abandoned')`,
     ),
   }),
 );

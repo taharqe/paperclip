@@ -111,6 +111,37 @@ describe("ERP schema", () => {
     }
   });
 
+  it("constrains every closed-set column at the database level", () => {
+    // Porting this schema from hand-written SQL to Drizzle silently dropped
+    // every CHECK constraint once: the columns and indexes came across, the
+    // checks did not, and `confidence: 5` was accepted until an integration
+    // test caught it. Application code is not a substitute for a constraint -
+    // the database is the last line that always runs.
+    const expected: Record<string, string[]> = {
+      erpDocuments: ["erp_documents_lifecycle_ck", "erp_documents_created_by_kind_ck"],
+      erpDocumentRevisions: ["erp_revisions_state_ck", "erp_revisions_byte_size_ck"],
+      erpExtractionRuns: ["erp_extraction_runs_method_ck", "erp_extraction_runs_status_ck"],
+      erpExtractedValues: [
+        "erp_values_origin_ck",
+        "erp_values_review_ck",
+        "erp_values_confidence_ck",
+      ],
+      erpRevisionDiffEntries: ["erp_diff_entries_kind_ck"],
+      erpStateTransitions: ["erp_transitions_actor_kind_ck"],
+      erpReleaseGates: ["erp_gates_status_ck"],
+      erpRoleGrants: ["erp_role_grants_principal_kind_ck", "erp_role_grants_role_ck"],
+      erpOperations: ["erp_operations_status_ck"],
+    };
+
+    for (const [exportName, table] of ERP_TABLES) {
+      const wanted = expected[exportName] ?? [];
+      const actual = getTableConfig(table).checks.map((entry) => entry.name);
+      for (const name of wanted) {
+        expect(actual, `${exportName} is missing CHECK ${name}`).toContain(name);
+      }
+    }
+  });
+
   it("keeps approval-payload-bound identifiers clear of the redaction pattern", () => {
     // server/src/redaction.ts replaces any key matching token/secret/key/auth
     // on every approvals response, so a token-named gate identifier would come

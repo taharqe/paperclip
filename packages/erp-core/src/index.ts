@@ -14,3 +14,4 @@
  * primitives (assets, issues, approvals, activity log, agents, projects).
  */
 export * from "./domain/index.js";
+export * from "./services/index.js";

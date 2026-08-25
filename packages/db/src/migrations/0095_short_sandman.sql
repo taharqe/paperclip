@@ -1,0 +1,15 @@
+ALTER TABLE "erp_document_revisions" ADD CONSTRAINT "erp_revisions_state_ck" CHECK ("erp_document_revisions"."review_state" in ('DRAFT', 'AI_GENERATED', 'REQUIRES_REVIEW', 'APPROVED', 'RELEASED', 'REJECTED'));--> statement-breakpoint
+ALTER TABLE "erp_document_revisions" ADD CONSTRAINT "erp_revisions_byte_size_ck" CHECK ("erp_document_revisions"."asset_byte_size" >= 0);--> statement-breakpoint
+ALTER TABLE "erp_documents" ADD CONSTRAINT "erp_documents_lifecycle_ck" CHECK ("erp_documents"."lifecycle_status" in ('active', 'superseded', 'withdrawn'));--> statement-breakpoint
+ALTER TABLE "erp_documents" ADD CONSTRAINT "erp_documents_created_by_kind_ck" CHECK ("erp_documents"."created_by_kind" in ('user', 'agent', 'plugin'));--> statement-breakpoint
+ALTER TABLE "erp_extracted_values" ADD CONSTRAINT "erp_values_origin_ck" CHECK ("erp_extracted_values"."origin" in ('ai', 'human', 'parser'));--> statement-breakpoint
+ALTER TABLE "erp_extracted_values" ADD CONSTRAINT "erp_values_review_ck" CHECK ("erp_extracted_values"."review_state" in ('unreviewed', 'accepted', 'corrected', 'rejected'));--> statement-breakpoint
+ALTER TABLE "erp_extracted_values" ADD CONSTRAINT "erp_values_confidence_ck" CHECK ("erp_extracted_values"."confidence" is null or ("erp_extracted_values"."confidence" >= 0 and "erp_extracted_values"."confidence" <= 1));--> statement-breakpoint
+ALTER TABLE "erp_extraction_runs" ADD CONSTRAINT "erp_extraction_runs_method_ck" CHECK ("erp_extraction_runs"."extraction_method" in ('llm_vision', 'llm_text', 'ocr', 'parser', 'manual'));--> statement-breakpoint
+ALTER TABLE "erp_extraction_runs" ADD CONSTRAINT "erp_extraction_runs_status_ck" CHECK ("erp_extraction_runs"."status" in ('started', 'committed', 'failed', 'abandoned'));--> statement-breakpoint
+ALTER TABLE "erp_operations" ADD CONSTRAINT "erp_operations_status_ck" CHECK ("erp_operations"."status" in ('started', 'committed', 'failed', 'abandoned'));--> statement-breakpoint
+ALTER TABLE "erp_release_gates" ADD CONSTRAINT "erp_gates_status_ck" CHECK ("erp_release_gates"."gate_status" in ('awaiting_link', 'pending', 'approved', 'rejected', 'cancelled'));--> statement-breakpoint
+ALTER TABLE "erp_revision_diff_entries" ADD CONSTRAINT "erp_diff_entries_kind_ck" CHECK ("erp_revision_diff_entries"."change_kind" in ('added', 'removed', 'changed'));--> statement-breakpoint
+ALTER TABLE "erp_role_grants" ADD CONSTRAINT "erp_role_grants_principal_kind_ck" CHECK ("erp_role_grants"."principal_kind" in ('user', 'agent'));--> statement-breakpoint
+ALTER TABLE "erp_role_grants" ADD CONSTRAINT "erp_role_grants_role_ck" CHECK ("erp_role_grants"."erp_role" in ('erp_viewer', 'erp_engineer', 'erp_doc_controller', 'erp_approver', 'erp_admin'));--> statement-breakpoint
+ALTER TABLE "erp_state_transitions" ADD CONSTRAINT "erp_transitions_actor_kind_ck" CHECK ("erp_state_transitions"."actor_kind" in ('user', 'agent', 'plugin'));
